@@ -1,0 +1,4 @@
+FROM mongo
+
+ADD ./mongodb.key /tmp
+ENV AUTH yes

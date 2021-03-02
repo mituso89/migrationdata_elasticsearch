@@ -1,0 +1,116 @@
+# Use root/example as user/password credentials
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo
+
+    container_name: mongo
+    # restart: always
+
+    ports:
+      - 27018:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGODB_USERNAME: tuan
+      MONGODB_PASSWORD: 123456
+      MONGO_REPLICA_SET_NAME: replica-setup
+
+    command: [
+        # "-f",
+        # "/etc/mongod.conf",
+        "--keyFile",
+        "/tmp/mongodb.key",
+        "--replSet",
+        "replica-setup",
+        "--bind_ip_all",
+      ]
+    volumes:
+      - ./mongo/mongodb.key:/tmp/mongodb.key
+      - /mongodb:/data/db
+      # - ./mongo/mongod.conf:/etc/mongod.conf
+      - /mongoLog1:/var/log/mongodb
+  mongo_replica:
+    container_name: mongo-setup
+    image: mongo
+    restart: on-failure
+
+    volumes:
+      - ./config/setup-replica.sh:/scripts/mongosetup.sh
+    # entrypoint: ["bash"]
+    # entrypoint: ["bash", "/scripts/mongosetup.sh"]
+
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    depends_on:
+      - mongo
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.5.2
+    container_name: elasticsearch
+    restart: always
+    # expose:
+    #   - 9200
+    #   - 9300
+    ports:
+      - 9200:9200
+      # - 9300:9300
+    environment:
+      discovery.type: single-node
+    # volumes:
+    #   - ~/Documents/Logstash/esdata:/usr/share/elasticsearch/data
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.5.2
+    container_name: logstash
+    # command: bash -c "cd bin && logstash-plugin install logstash-input-mongodb && logstash-plugin install logstash-output-elasticsearch && logstash -f /usr/share/logstash/pipeline/logstash.conf"
+    command: bash -c "cd bin && logstash -f /usr/share/logstash/pipeline/logstash.conf"
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:rw
+    depends_on:
+      - elasticsearch
+      - mongo
+    ports:
+      # - "25826:25826"
+      - "5044:5044"
+      - "5044:5044/udp"
+      - "9600:9600"
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.5.2
+    container_name: kibana
+    # environment:
+    #   ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - 5601:5601
+  django:
+    build:
+      context: .
+    # command: 'sh -c "python manage.py runserver"'
+    ports:
+      - "8000:8000"
+    command: "python manage.py runserver"
+    depends_on:
+      - logstash
+
+  monstache:
+    image: rwynn/monstache:6.7.2
+    container_name: c-monstache
+    working_dir: /app
+    command: -f ./mongo-elastic.toml
+    volumes:
+      - ./config/mongo-elastic.toml:/app/mongo-elastic.toml
+      # - ./plugin/plugin.so:/app/plugin.so
+    depends_on:
+      - mongo
+      - elasticsearch
+    ports:
+      - "8080:8080"
+
+    healthcheck:
+      test: "wget -q -O - http://localhost:8080/healthz"
+      interval: 10s
+      timeout: 30s
+      retries: 300
+    restart: unless-stopped

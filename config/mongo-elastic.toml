@@ -1,0 +1,21 @@
+mongo-url ="mongodb://root:example@mongo:27017"
+elasticsearch-urls =["http://elasticsearch:9200"]
+elasticsearch-max-conns = 10
+
+
+replay = true
+resume = true
+resume-name = "default"
+resume-write-unsafe = false
+
+gzip = false
+
+stats = true
+
+namespace-regex ='^admin\.user$'
+direct-read-namespaces = ["admin.user"]
+index-as-update = true
+verbose = true
+exit-after-direct-reads = false
+
+
